@@ -1,15 +1,15 @@
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createNote, type CreateNoteData } from "../../services/noteService";
 import type { NoteTag } from "../../types/note";
 import css from "./NoteForm.module.css";
 
 interface NoteFormProps {
-  onSubmit: (values: NoteFormValues) => void;
-  onCancel: () => void;
-  isSubmitting?: boolean;
+  onClose: () => void;
 }
 
-export interface NoteFormValues {
+interface NoteFormValues {
   title: string;
   content: string;
   tag: NoteTag;
@@ -35,16 +35,31 @@ const initialValues: NoteFormValues = {
   tag: "Todo",
 };
 
-export default function NoteForm({
-  onSubmit,
-  onCancel,
-  isSubmitting = false,
-}: NoteFormProps) {
+export default function NoteForm({ onClose }: NoteFormProps) {
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: (noteData: CreateNoteData) => createNote(noteData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+      onClose();
+    },
+  });
+
+  const handleSubmit = (values: NoteFormValues) => {
+    const noteData: CreateNoteData = {
+      title: values.title,
+      content: values.content || undefined,
+      tag: values.tag,
+    };
+    createMutation.mutate(noteData);
+  };
+
   return (
     <Formik
       initialValues={initialValues}
       validationSchema={validationSchema}
-      onSubmit={onSubmit}
+      onSubmit={handleSubmit}
     >
       {({ isValid, dirty }) => (
         <Form className={css.form}>
@@ -91,14 +106,14 @@ export default function NoteForm({
             <button
               type="button"
               className={css.cancelButton}
-              onClick={onCancel}
+              onClick={onClose}
             >
               Cancel
             </button>
             <button
               type="submit"
               className={css.submitButton}
-              disabled={isSubmitting || !isValid || !dirty}
+              disabled={createMutation.isPending || !isValid || !dirty}
             >
               Create note
             </button>
@@ -108,4 +123,3 @@ export default function NoteForm({
     </Formik>
   );
 }
-
